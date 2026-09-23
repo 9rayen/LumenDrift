@@ -1,6 +1,5 @@
-# Builds LumenDrift.ipa on a free GitHub-hosted Mac (no Mac needed on your side).
-# Run it from the "Actions" tab → "Build iPhone app" → "Run workflow".
-# Download the result from the finished run's "Artifacts" section, then install it with Sideloadly.
+# Builds LumenDrift.ipa on a free GitHub-hosted Mac.
+# Result: download "LumenDrift-ipa" from the run's Artifacts, or LumenDrift.ipa from the "build-status" branch.
 name: Build iPhone app
 
 on:
@@ -8,10 +7,13 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Get the code
         uses: actions/checkout@v4
@@ -22,7 +24,10 @@ jobs:
           xcode-version: latest-stable
 
       - name: Build (unsigned — Sideloadly signs it with your Apple ID)
+        id: build
         run: |
+          set -o pipefail
+          xcodebuild -version | tee build.log
           xcodebuild \
             -project LumenDrift.xcodeproj \
             -scheme LumenDrift \
@@ -33,7 +38,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tee -a build.log
 
       - name: Package .ipa
         run: |
@@ -46,3 +51,19 @@ jobs:
         with:
           name: LumenDrift-ipa
           path: LumenDrift.ipa
+
+      - name: Publish build result to the build-status branch
+        if: always()
+        run: |
+          mkdir -p /tmp/status
+          echo "${{ job.status }} ${{ github.sha }}" > /tmp/status/STATUS.txt
+          grep -E "error:|warning: .*(isolat|Sendable|actor)|BUILD (SUCCEEDED|FAILED)|\*\* " build.log > /tmp/status/errors.txt || true
+          tail -n 300 build.log > /tmp/status/build-tail.log || true
+          [ -f LumenDrift.ipa ] && cp LumenDrift.ipa /tmp/status/ || true
+          cd /tmp/status
+          git init -q -b build-status
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "Build result for ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" build-status
