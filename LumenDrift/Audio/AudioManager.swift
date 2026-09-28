@@ -112,7 +112,13 @@ final class AudioManager {
         } catch {
             return false
         }
-        return engine.isRunning
+        guard engine.isRunning else { return false }
+        // Keep every voice running (silently) so the first sound on each one starts instantly;
+        // starting a player node the first time costs several milliseconds.
+        for voice in voices where !voice.isPlaying {
+            voice.play()
+        }
+        return true
     }
 
     /// Returns a cached buffer for the effect at the requested pitch, resampling once if needed.
