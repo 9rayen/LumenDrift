@@ -1,0 +1,38 @@
+AUDIO engine running=true voices=12 effects=10 buffers=31
+2026-09-28 12:04:48.944 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=301 hitches=1 worstFrame=4140.6ms sparks=4 sparkFrames=4 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.380ms collectWorst=0.621ms audio=0.067/0.097ms burst=0.003/0.004ms combo=0.236/0.236ms haptic=0.054/0.081ms popup=0.099/0.135ms
+2026-09-28 12:04:54.131 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=300 hitches=0 worstFrame=16.7ms sparks=16 sparkFrames=16 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.320ms collectWorst=0.548ms audio=0.045/0.148ms burst=0.003/0.007ms combo=0.105/0.183ms haptic=0.065/0.174ms popup=0.103/0.396ms
+2026-09-28 12:04:59.331 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=298 hitches=2 worstFrame=38.9ms sparks=8 sparkFrames=8 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.311ms collectWorst=0.570ms audio=0.059/0.112ms burst=0.004/0.007ms combo=0.079/0.079ms haptic=0.066/0.201ms popup=0.078/0.142ms
+2026-09-28 12:05:08.664 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=300 hitches=0 worstFrame=16.7ms sparks=7 sparkFrames=7 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.413ms collectWorst=0.729ms audio=0.058/0.093ms burst=0.004/0.007ms combo=0.206/0.206ms haptic=0.081/0.227ms popup=0.138/0.289ms
+IOSurfaceClientSetSurfaceNotify failed e00002c7
+PERF window=6.7s frames=262 hitches=1 worstFrame=151.2ms sparks=11 sparkFrames=11 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.290ms collectWorst=0.572ms audio=0.039/0.091ms burst=0.004/0.014ms combo=0.135/0.156ms haptic=0.049/0.168ms popup=0.075/0.129ms
+2026-09-28 12:05:16.268 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+2026-09-28 12:05:21.398 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=6.4s frames=217 hitches=5 worstFrame=191.1ms sparks=5 sparkFrames=5 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=1.352ms collectWorst=5.236ms audio=0.816/3.892ms burst=0.006/0.009ms combo=0.069/0.069ms haptic=0.255/1.031ms popup=0.121/0.180ms
+2026-09-28 12:05:26.498 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=287 hitches=6 worstFrame=64.9ms sparks=7 sparkFrames=7 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.296ms collectWorst=0.477ms audio=0.078/0.202ms burst=0.006/0.016ms combo=0.080/0.080ms haptic=0.064/0.094ms popup=0.064/0.101ms
+2026-09-28 12:05:31.598 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=300 hitches=0 worstFrame=16.7ms sparks=12 sparkFrames=12 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.413ms collectWorst=0.705ms audio=0.062/0.127ms burst=0.004/0.007ms combo=0.202/0.207ms haptic=0.079/0.175ms popup=0.116/0.356ms
+2026-09-28 12:05:36.964 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=300 hitches=0 worstFrame=16.7ms sparks=19 sparkFrames=19 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.440ms collectWorst=1.484ms audio=0.060/0.243ms burst=0.005/0.017ms combo=0.465/0.733ms haptic=0.058/0.151ms popup=0.099/0.255ms
+PERF window=6.4s frames=243 hitches=3 worstFrame=236.2ms sparks=7 sparkFrames=7 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.307ms collectWorst=0.427ms audio=0.061/0.122ms burst=0.004/0.006ms haptic=0.064/0.164ms popup=0.078/0.121ms
+2026-09-28 12:05:43.864 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=273 hitches=6 worstFrame=161.0ms sparks=3 sparkFrames=3 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.702ms collectWorst=0.801ms audio=0.202/0.427ms burst=0.004/0.005ms haptic=0.106/0.182ms popup=0.282/0.625ms
+2026-09-28 12:05:48.998 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=299 hitches=1 worstFrame=34.3ms sparks=11 sparkFrames=11 sparkHitches=1 worstSparkFrame=34.3ms collectAvg=0.501ms collectWorst=0.867ms audio=0.088/0.251ms burst=0.005/0.007ms combo=0.279/0.287ms haptic=0.076/0.138ms popup=0.122/0.259ms
+2026-09-28 12:05:54.081 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=159 hitches=7 worstFrame=95.0ms sparks=9 sparkFrames=9 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.428ms collectWorst=0.771ms audio=0.064/0.130ms burst=0.004/0.007ms combo=0.164/0.257ms haptic=0.079/0.159ms popup=0.107/0.283ms
+2026-09-28 12:05:59.215 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=6.6s frames=270 hitches=1 worstFrame=95.2ms sparks=8 sparkFrames=8 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.444ms collectWorst=0.678ms audio=0.064/0.157ms burst=0.005/0.007ms combo=0.322/0.322ms haptic=0.085/0.117ms popup=0.121/0.175ms
+2026-09-28 12:06:05.498 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=286 hitches=8 worstFrame=66.4ms sparks=8 sparkFrames=8 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.480ms collectWorst=1.269ms audio=0.051/0.105ms burst=0.005/0.007ms combo=0.217/0.217ms haptic=0.083/0.192ms popup=0.101/0.153ms
+2026-09-28 12:06:10.632 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.1s frames=155 hitches=4 worstFrame=131.3ms sparks=7 sparkFrames=7 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.475ms collectWorst=0.857ms audio=0.079/0.317ms burst=0.004/0.006ms combo=0.141/0.214ms haptic=0.128/0.326ms popup=0.107/0.157ms
+2026-09-28 12:06:15.715 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=298 hitches=1 worstFrame=57.3ms sparks=9 sparkFrames=9 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.417ms collectWorst=0.882ms audio=0.076/0.242ms burst=0.004/0.006ms combo=0.155/0.155ms haptic=0.094/0.154ms popup=0.132/0.388ms
+2026-09-28 12:06:20.815 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
+PERF window=5.0s frames=300 hitches=0 worstFrame=16.7ms sparks=11 sparkFrames=11 sparkHitches=0 worstSparkFrame=16.7ms collectAvg=0.364ms collectWorst=0.776ms audio=0.055/0.107ms burst=0.007/0.034ms combo=0.155/0.336ms haptic=0.076/0.219ms popup=0.087/0.196ms
+2026-09-28 12:06:25.915 LumenDrift[8189:29657] SKView: no drawables available for rendering. Skipping this frame.
