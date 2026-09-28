@@ -82,5 +82,13 @@ final class GameSession: ObservableObject {
         } else {
             AudioManager.shared.play(.gameOver)
         }
+        #if DEBUG
+        if DebugHarness.isAutopilot {
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                self?.restart()
+            }
+        }
+        #endif
     }
 }

@@ -1,11 +1,12 @@
-# Builds LumenDrift.ipa on a free GitHub-hosted Mac.
-# Result: download "LumenDrift-ipa" from the run's Artifacts, or LumenDrift.ipa from the "build-status" branch.
+# Builds LumenDrift.ipa on a free GitHub-hosted Mac (no Mac needed on your side),
+# then plays the game on an iOS Simulator with the debug autopilot to catch crashes and measure frame timing.
+# Results: the "LumenDrift-ipa" artifact, or the build-status branch (build-status-<branch> for other branches).
 name: Build iPhone app
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches-ignore: [ 'build-status**' ]
 
 permissions:
   contents: write
@@ -13,7 +14,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - name: Get the code
         uses: actions/checkout@v4
@@ -23,8 +24,7 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Build (unsigned — Sideloadly signs it with your Apple ID)
-        id: build
+      - name: Build for iPhone (unsigned; Sideloadly signs it with your Apple ID)
         run: |
           set -o pipefail
           xcodebuild -version | tee build.log
@@ -52,18 +52,70 @@ jobs:
           name: LumenDrift-ipa
           path: LumenDrift.ipa
 
+      - name: Simulator smoke and performance test
+        id: sim
+        continue-on-error: true
+        run: |
+          xcodebuild \
+            -project LumenDrift.xcodeproj \
+            -scheme LumenDrift \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build-sim \
+            CODE_SIGNING_ALLOWED=NO \
+            build > sim-build.log 2>&1 || { tail -n 80 sim-build.log; exit 1; }
+
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)['devices']
+          for runtime, devices in sorted(data.items(), reverse=True):
+              if 'iOS' not in runtime:
+                  continue
+              for d in devices:
+                  if d['name'].startswith('iPhone'):
+                      print(d['udid'], d['name'], runtime, file=sys.stderr)
+                      print(d['udid'])
+                      sys.exit(0)
+          ")
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build-sim/Build/Products/Debug-iphonesimulator/LumenDrift.app
+          xcrun simctl launch --stdout="$PWD/sim-stdout.log" --stderr="$PWD/sim-perf.log" \
+            "$UDID" com.yourname.lumendrift -autopilot
+          sleep 25
+          xcrun simctl io "$UDID" screenshot shot-1.png || true
+          sleep 40
+          xcrun simctl io "$UDID" screenshot shot-2.png || true
+          if xcrun simctl spawn "$UDID" launchctl list | grep -qi lumendrift; then
+            echo "RUNNING" > sim-running.txt
+          else
+            echo "NOT RUNNING (crashed or exited)" > sim-running.txt
+          fi
+          xcrun simctl terminate "$UDID" com.yourname.lumendrift || true
+          ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i lumen > sim-crashes.txt || echo "no crash reports" > sim-crashes.txt
+          cat sim-running.txt sim-crashes.txt
+          cat sim-perf.log || true
+
       - name: Publish build result to the build-status branch
         if: always()
         run: |
+          BRANCH="${{ github.ref_name }}"
+          if [ "$BRANCH" = "main" ]; then TARGET="build-status"; else TARGET="build-status-$(echo "$BRANCH" | tr '/' '-')"; fi
           mkdir -p /tmp/status
-          echo "${{ job.status }} ${{ github.sha }}" > /tmp/status/STATUS.txt
+          echo "${{ job.status }} ${{ github.sha }} sim=${{ steps.sim.outcome }}" > /tmp/status/STATUS.txt
           grep -E "error:|warning: .*(isolat|Sendable|actor)|BUILD (SUCCEEDED|FAILED)|\*\* " build.log > /tmp/status/errors.txt || true
           tail -n 300 build.log > /tmp/status/build-tail.log || true
           [ -f LumenDrift.ipa ] && cp LumenDrift.ipa /tmp/status/ || true
+          for f in sim-perf.log sim-stdout.log sim-running.txt sim-crashes.txt shot-1.png shot-2.png; do
+            [ -f "$f" ] && cp "$f" /tmp/status/ || true
+          done
+          [ -f sim-build.log ] && grep -E "error:|BUILD (SUCCEEDED|FAILED)" sim-build.log > /tmp/status/sim-build-errors.txt || true
           cd /tmp/status
-          git init -q -b build-status
+          git init -q -b "$TARGET"
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add -A
           git commit -qm "Build result for ${{ github.sha }}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" build-status
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$TARGET"

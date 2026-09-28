@@ -34,5 +34,10 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             AudioManager.shared.handleAppActive(phase == .active)
         }
+        #if DEBUG
+        .task {
+            if DebugHarness.isAutopilot { router.go(.game) }
+        }
+        #endif
     }
 }

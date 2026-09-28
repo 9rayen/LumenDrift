@@ -55,6 +55,10 @@ final class GameScene: SKScene {
     private var publishedPowerUps: [ActivePowerUp] = []
     private var isBuilt = false
 
+    #if DEBUG
+    let perfStats = PerfStats()
+    #endif
+
     init(size: CGSize, config: GameConfig) {
         self.config = config
         backdrop = BackdropNode(theme: config.theme)
@@ -208,6 +212,11 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         defer { lastUpdateTime = currentTime }
         guard lastUpdateTime > 0 else { return }
+        #if DEBUG
+        if DebugHarness.isAutopilot && runState == .running && !isGamePaused {
+            perfStats.recordFrame(rawDt: currentTime - lastUpdateTime, now: currentTime)
+        }
+        #endif
         let dt = min(currentTime - lastUpdateTime, 1.0 / 30.0)
         guard !isGamePaused else { return }
 
@@ -223,6 +232,9 @@ final class GameScene: SKScene {
 
     private func step(_ dt: TimeInterval) {
         guard let player else { return }
+        #if DEBUG
+        if DebugHarness.isAutopilot { autopilotSteer() }
+        #endif
         let slowed = powerUps[.slowMo] != nil
         let worldDt = dt * (slowed ? 0.55 : 1)
         elapsed += worldDt
@@ -363,6 +375,12 @@ final class GameScene: SKScene {
     }
 
     private func collect(spark: SparkNode, at point: CGPoint, doubled: Bool) {
+        #if DEBUG
+        let perfStart = CACurrentMediaTime()
+        defer {
+            if DebugHarness.isAutopilot { perfStats.recordCollect(CACurrentMediaTime() - perfStart) }
+        }
+        #endif
         spark.collected = true
         spark.removeAllActions()
         spark.run(.sequence([
