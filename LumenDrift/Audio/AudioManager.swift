@@ -92,9 +92,11 @@ final class AudioManager {
             voices.append(voice)
         }
 
-        // Build every default-pitch buffer up front so no effect is prepared mid-game.
+        // Build every buffer the game can ask for up front, so no effect is prepared mid-game.
         for effect in SoundEffect.allCases {
-            _ = buffer(for: effect, rate: 1)
+            for pitch in effect.pitches {
+                _ = buffer(for: effect, rate: pitch)
+            }
         }
 
         engine.prepare()
@@ -175,6 +177,13 @@ final class AudioManager {
         }
         return resampled
     }
+
+    #if DEBUG
+    var debugStatus: String {
+        let bufferCount = buffers.values.reduce(0) { $0 + $1.count }
+        return "engine running=\(engine.isRunning) voices=\(voices.count) effects=\(samples.count) buffers=\(bufferCount)"
+    }
+    #endif
 
     // MARK: - Music
 

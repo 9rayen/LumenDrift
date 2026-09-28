@@ -88,6 +88,9 @@ final class GameScene: SKScene {
     override func didMove(to view: SKView) {
         view.isMultipleTouchEnabled = false
         buildIfNeeded()
+        #if DEBUG
+        if DebugHarness.isAutopilot { DebugHarness.log("AUDIO \(AudioManager.shared.debugStatus)") }
+        #endif
         if runState == .idle {
             startNewRun()
         }
@@ -421,15 +424,15 @@ final class GameScene: SKScene {
         ]))
 
         let result = keeper.registerSpark(doubled: doubled)
-        sparkBurst(at: point)
-        popup("+\(result.points)", at: CGPoint(x: point.x, y: point.y + 18), color: accentColor, size: 15)
+        timed("burst") { sparkBurst(at: point) }
+        timed("popup") { popup("+\(result.points)", at: CGPoint(x: point.x, y: point.y + 18), color: accentColor, size: 15) }
         player?.pop()
 
-        let pitch = 1 + Float(min(keeper.chain, 12)) * 0.035
-        AudioManager.shared.play(.spark, rate: pitch)
-        HapticsManager.shared.spark()
+        let pitch = SoundEffect.sparkPitch(chain: keeper.chain)
+        timed("audio") { AudioManager.shared.play(.spark, rate: pitch) }
+        timed("haptic") { HapticsManager.shared.spark() }
 
-        if result.multiplierUp { multiplierIncreased() }
+        if result.multiplierUp { timed("combo") { multiplierIncreased() } }
     }
 
     private func nearMiss(row: RowNode, player: PlayerNode) {
@@ -446,7 +449,7 @@ final class GameScene: SKScene {
         let m = keeper.multiplier
         popup("COMBO x\(m)", at: CGPoint(x: size.width / 2, y: size.height * 0.62), color: accentColor, size: 30)
         shockwave(at: player?.position ?? .zero, color: accentColor)
-        AudioManager.shared.play(.combo, rate: 1 + Float(m) * 0.05)
+        AudioManager.shared.play(.combo, rate: SoundEffect.comboPitch(multiplier: m))
         HapticsManager.shared.combo()
     }
 
@@ -523,6 +526,19 @@ final class GameScene: SKScene {
             slowMoOverlay.run(.fadeOut(withDuration: 0.3))
         case .double: break
         }
+    }
+
+    /// Runs `work`; during debug autopilot runs it also records how long the work took.
+    private func timed(_ segment: String, _ work: () -> Void) {
+        #if DEBUG
+        if DebugHarness.isAutopilot {
+            let start = CACurrentMediaTime()
+            work()
+            perfStats.recordSegment(segment, CACurrentMediaTime() - start)
+            return
+        }
+        #endif
+        work()
     }
 
     /// Replays a pooled particle burst instead of allocating a new emitter per spark.

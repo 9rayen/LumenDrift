@@ -24,6 +24,25 @@ enum SoundEffect: String, CaseIterable {
     }
 }
 
+extension SoundEffect {
+    /// Spark chimes rise in pitch as the combo chain grows.
+    static func sparkPitch(chain: Int) -> Float { 1 + Float(min(max(chain, 0), 12)) * 0.035 }
+
+    /// The combo sting climbs with the multiplier.
+    static func comboPitch(multiplier: Int) -> Float { 1 + Float(min(max(multiplier, 1), 8)) * 0.05 }
+
+    /// Every pitch the game plays this effect at. All of them are rendered at launch,
+    /// so nothing is resampled during a run.
+    var pitches: [Float] {
+        switch self {
+        case .spark: return (0...12).map { Self.sparkPitch(chain: $0) }
+        case .combo: return (1...8).map { Self.comboPitch(multiplier: $0) } + [1]
+        case .button: return [1, 1.2]
+        default: return [1]
+        }
+    }
+}
+
 /// Background music. Raw value is the file name in Resources/Audio.
 enum MusicTrack: String {
     case menu = "music_menu"

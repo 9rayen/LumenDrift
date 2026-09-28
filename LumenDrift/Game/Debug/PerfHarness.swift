@@ -29,6 +29,7 @@ final class PerfStats {
     private var collectTotal: TimeInterval = 0
     private var collectWorst: TimeInterval = 0
     private var sparkPending = false
+    private var segments: [String: (total: TimeInterval, worst: TimeInterval, count: Int)] = [:]
 
     /// Call once per update with the unclamped time since the previous update.
     func recordFrame(rawDt: TimeInterval, now: TimeInterval) {
@@ -54,13 +55,22 @@ final class PerfStats {
         sparkPending = true
     }
 
+    /// Time spent in one named part of a pickup (audio, popup, …).
+    func recordSegment(_ name: String, _ duration: TimeInterval) {
+        var entry = segments[name, default: (0, 0, 0)]
+        entry.total += duration
+        entry.worst = max(entry.worst, duration)
+        entry.count += 1
+        segments[name] = entry
+    }
+
     private func flush(now: TimeInterval) {
         let collectAvg = sparks > 0 ? collectTotal / Double(sparks) : 0
         DebugHarness.log(String(
             format: "PERF window=%.1fs frames=%ld hitches=%ld worstFrame=%.1fms sparks=%ld sparkFrames=%ld sparkHitches=%ld worstSparkFrame=%.1fms collectAvg=%.3fms collectWorst=%.3fms",
             now - windowStart, frames, hitches, worstFrame * 1000, sparks, sparkFrames, sparkHitches,
             worstSparkFrame * 1000, collectAvg * 1000, collectWorst * 1000
-        ))
+        ) + segmentSummary())
         windowStart = now
         frames = 0
         hitches = 0
@@ -71,15 +81,31 @@ final class PerfStats {
         worstSparkFrame = 0
         collectTotal = 0
         collectWorst = 0
+        segments.removeAll()
+    }
+
+    private func segmentSummary() -> String {
+        segments.keys.sorted().map { name in
+            let entry = segments[name] ?? (0, 0, 0)
+            let average = entry.count > 0 ? entry.total / Double(entry.count) : 0
+            return String(format: " %@=%.3f/%.3fms", name, average * 1000, entry.worst * 1000)
+        }.joined()
     }
 }
 
 extension GameScene {
-    /// Steers toward the x position with the most clearance in the next row, which is also where sparks sit.
+    /// Chases the sparks behind the last row while the next row is far away, otherwise steers to the
+    /// x position with the most clearance in the next row.
     func autopilotSteer() {
         guard runState == .running, let player else { return }
         let p = player.position
-        guard let row = rows.first(where: { !$0.resolved && !$0.isBroken && $0.position.y > p.y - 10 }) else { return }
+        let next = rows.first(where: { !$0.resolved && !$0.isBroken && $0.position.y > p.y - 10 })
+        let nextIsFar = next.map { $0.position.y - p.y > 150 } ?? true
+        if nextIsFar, let spark = nearestSparkAhead(of: p) {
+            targetX = spark.x.clamped(to: horizontalRange)
+            return
+        }
+        guard let row = next else { return }
 
         let range = horizontalRange
         var bestX = targetX
@@ -99,6 +125,19 @@ extension GameScene {
             }
         }
         targetX = bestX
+    }
+
+    private func nearestSparkAhead(of p: CGPoint) -> CGPoint? {
+        var best: CGPoint?
+        for row in rows {
+            for spark in row.sparks where !spark.collected {
+                let position = row.parentPosition(of: spark)
+                guard position.y > p.y - 10, position.y - p.y < 260 else { continue }
+                if let current = best, current.y <= position.y { continue }
+                best = position
+            }
+        }
+        return best
     }
 }
 #endif
