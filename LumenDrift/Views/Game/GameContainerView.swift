@@ -17,11 +17,11 @@ struct GameContainerView: View {
         let accent = Color(hex: session.theme.accent)
 
         ZStack {
-            SpriteView(scene: session.scene, preferredFramesPerSecond: 60)
+            SpriteView(scene: session.scene, preferredFramesPerSecond: 60, options: [.ignoresSiblingOrder])
                 .ignoresSafeArea()
 
             if session.phase != .over {
-                GameHUD(session: session, accent: accent) {
+                GameHUD(session: session, hud: session.hud, accent: accent) {
                     session.pause()
                 }
                 .transition(.opacity)

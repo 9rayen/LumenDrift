@@ -3,6 +3,7 @@ import SwiftUI
 /// Minimal in-game overlay: pause, score, best, multiplier and active power-ups.
 struct GameHUD: View {
     @ObservedObject var session: GameSession
+    @ObservedObject var hud: HUDState
     let accent: Color
     let onPause: () -> Void
 
@@ -30,18 +31,18 @@ struct GameHUD: View {
 
                     Spacer()
 
-                    MultiplierBadge(multiplier: session.multiplier, accent: accent)
+                    MultiplierBadge(multiplier: hud.multiplier, accent: accent)
                         .allowsHitTesting(false)
                 }
             }
 
             HStack(spacing: 8) {
-                ForEach(session.activePowerUps) { power in
+                ForEach(hud.activePowerUps) { power in
                     PowerUpChip(power: power)
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: session.activePowerUps.map(\.id))
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: hud.activePowerUps.map(\.id))
             .allowsHitTesting(false)
 
             Spacer()
@@ -58,17 +59,19 @@ struct GameHUD: View {
         .animation(.easeOut(duration: 0.3), value: session.showHint)
     }
 
+    private var isNewBestLive: Bool { hud.score > session.bestScore && session.bestScore > 0 }
+
     private var scoreBlock: some View {
         VStack(spacing: 0) {
-            Text("\(session.score)")
+            Text("\(hud.score)")
                 .font(.display(46, .black))
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .shadow(color: accent.opacity(0.6), radius: 12)
-            Text(session.isNewBestLive ? "NEW BEST" : "BEST \(session.bestScore)")
+            Text(isNewBestLive ? "NEW BEST" : "BEST \(session.bestScore)")
                 .font(.eyebrow)
                 .tracking(2)
-                .foregroundStyle(session.isNewBestLive ? accent : .white.opacity(0.55))
+                .foregroundStyle(isNewBestLive ? accent : .white.opacity(0.55))
         }
         .accessibilityElement(children: .combine)
     }

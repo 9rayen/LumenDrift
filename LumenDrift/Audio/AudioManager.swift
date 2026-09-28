@@ -2,6 +2,10 @@ import AVFoundation
 
 /// Plays bundled audio only — nothing is streamed. Missing files are skipped silently,
 /// so the game still runs if you remove or rename an audio asset.
+///
+/// Sound effects run through `AVAudioEngine`: every effect is decoded once into memory and played by
+/// scheduling a buffer on a pooled player node. Scheduling never blocks the main thread, which keeps the
+/// game loop smooth when many sparks are collected in quick succession. Music uses `AVAudioPlayer`.
 final class AudioManager {
     static let shared = AudioManager()
 
@@ -19,10 +23,21 @@ final class AudioManager {
     }
 
     private static let supportedExtensions = ["m4a", "mp3", "caf", "wav", "aiff"]
+    private static let sampleRate: Double = 44_100
+    private static let voiceCount = 12
     private let musicVolume: Float = 0.5
 
-    private var pools: [SoundEffect: [AVAudioPlayer]] = [:]
-    private var nextVoice: [SoundEffect: Int] = [:]
+    // Sound effects
+    private let engine = AVAudioEngine()
+    private var sfxFormat: AVAudioFormat?
+    private var voices: [AVAudioPlayerNode] = []
+    private var nextVoice = 0
+    /// Mono samples at `sampleRate`, decoded once at launch.
+    private var samples: [SoundEffect: [Float]] = [:]
+    /// Ready-to-play buffers per effect and pitch (pitch in hundredths).
+    private var buffers: [SoundEffect: [Int: AVAudioPCMBuffer]] = [:]
+
+    // Music
     private var musicPlayers: [MusicTrack: AVAudioPlayer] = [:]
     private var desiredTrack: MusicTrack?
     private var currentTrack: MusicTrack?
@@ -37,32 +52,128 @@ final class AudioManager {
         // .ambient respects the silent switch and mixes with the player's own music.
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+        try? session.setPreferredIOBufferDuration(0.01)
         try? session.setActive(true)
 
-        for effect in SoundEffect.allCases {
-            guard let url = Self.url(for: effect.rawValue) else { continue }
-            let players: [AVAudioPlayer] = (0..<effect.voices).compactMap { _ in
-                guard let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
-                player.enableRate = true
-                player.volume = effect.volume
-                player.prepareToPlay()
-                return player
-            }
-            pools[effect] = players
-        }
+        setUpEffects()
     }
 
     // MARK: - Effects
 
-    /// - Parameter rate: playback speed; >1 raises the pitch (used for rising combo sounds).
+    /// - Parameter rate: pitch/speed multiplier; >1 plays higher (used for rising combo sounds).
     func play(_ effect: SoundEffect, rate: Float = 1) {
-        guard sfxEnabled, let pool = pools[effect], !pool.isEmpty else { return }
-        let index = nextVoice[effect, default: 0]
-        nextVoice[effect] = (index + 1) % pool.count
-        let player = pool[index]
-        player.currentTime = 0
-        player.rate = rate
-        player.play()
+        guard sfxEnabled, !voices.isEmpty,
+              let buffer = buffer(for: effect, rate: rate),
+              startEngineIfNeeded() else { return }
+
+        let voice = voices[nextVoice]
+        nextVoice = (nextVoice + 1) % voices.count
+        voice.volume = effect.volume
+        voice.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
+        if !voice.isPlaying { voice.play() }
+    }
+
+    private func setUpEffects() {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: Self.sampleRate, channels: 1) else { return }
+        sfxFormat = format
+
+        for effect in SoundEffect.allCases {
+            guard let url = Self.url(for: effect.rawValue),
+                  let decoded = Self.decodeMono(url: url, sampleRate: Self.sampleRate) else { continue }
+            samples[effect] = decoded
+        }
+
+        // Only the input-free output path is used, so the microphone is never touched.
+        let mixer = engine.mainMixerNode
+        for _ in 0..<Self.voiceCount {
+            let voice = AVAudioPlayerNode()
+            engine.attach(voice)
+            engine.connect(voice, to: mixer, format: format)
+            voices.append(voice)
+        }
+
+        // Build every default-pitch buffer up front so no effect is prepared mid-game.
+        for effect in SoundEffect.allCases {
+            _ = buffer(for: effect, rate: 1)
+        }
+
+        engine.prepare()
+        startEngineIfNeeded()
+    }
+
+    /// Restarts the engine after interruptions (calls, Siri, route changes). Returns false if it can't run.
+    @discardableResult
+    private func startEngineIfNeeded() -> Bool {
+        if engine.isRunning { return true }
+        do {
+            try engine.start()
+        } catch {
+            return false
+        }
+        return engine.isRunning
+    }
+
+    /// Returns a cached buffer for the effect at the requested pitch, resampling once if needed.
+    private func buffer(for effect: SoundEffect, rate: Float) -> AVAudioPCMBuffer? {
+        let pitch = Int((min(max(rate, 0.5), 2) * 100).rounded())
+        if let cached = buffers[effect]?[pitch] { return cached }
+        guard let format = sfxFormat, let source = samples[effect], !source.isEmpty else { return nil }
+
+        let step = Double(pitch) / 100
+        let frameCount = max(1, Int(Double(source.count) / step))
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)),
+              let output = buffer.floatChannelData?[0] else { return nil }
+
+        let last = source.count - 1
+        for i in 0..<frameCount {
+            let position = Double(i) * step
+            let index = min(Int(position), last)
+            let next = min(index + 1, last)
+            let fraction = Float(position - Double(index))
+            output[i] = source[index] + (source[next] - source[index]) * fraction
+        }
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        buffers[effect, default: [:]][pitch] = buffer
+        return buffer
+    }
+
+    /// Decodes any supported file to mono Float samples at the given sample rate.
+    private static func decodeMono(url: URL, sampleRate: Double) -> [Float]? {
+        guard let file = try? AVAudioFile(forReading: url) else { return nil }
+        let format = file.processingFormat
+        let length = AVAudioFrameCount(file.length)
+        guard length > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: length),
+              (try? file.read(into: buffer)) != nil,
+              let channels = buffer.floatChannelData else { return nil }
+
+        let frames = Int(buffer.frameLength)
+        let channelCount = Int(format.channelCount)
+        guard frames > 0, channelCount > 0 else { return nil }
+
+        var mono = [Float](repeating: 0, count: frames)
+        for channel in 0..<channelCount {
+            let data = channels[channel]
+            for i in 0..<frames { mono[i] += data[i] }
+        }
+        if channelCount > 1 {
+            let scale = 1 / Float(channelCount)
+            for i in 0..<frames { mono[i] *= scale }
+        }
+
+        let ratio = format.sampleRate / sampleRate
+        guard abs(ratio - 1) > 0.0001 else { return mono }
+
+        let outputCount = max(1, Int(Double(frames) / ratio))
+        var resampled = [Float](repeating: 0, count: outputCount)
+        for i in 0..<outputCount {
+            let position = Double(i) * ratio
+            let index = min(Int(position), frames - 1)
+            let next = min(index + 1, frames - 1)
+            let fraction = Float(position - Double(index))
+            resampled[i] = mono[index] + (mono[next] - mono[index]) * fraction
+        }
+        return resampled
     }
 
     // MARK: - Music
@@ -81,12 +192,14 @@ final class AudioManager {
 
     func handleAppActive(_ active: Bool) {
         if active {
+            startEngineIfNeeded()
             if musicEnabled, let track = desiredTrack {
                 currentTrack = nil
                 start(track)
             }
         } else {
             musicPlayers.values.forEach { $0.pause() }
+            engine.pause()
         }
     }
 

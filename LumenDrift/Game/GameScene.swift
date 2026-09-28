@@ -16,12 +16,15 @@ final class GameScene: SKScene {
     weak var session: GameSession?
     let config: GameConfig
     let playerRadius: CGFloat = 15
+    let accentColor: UIColor
 
     // Layers
     let backdrop: BackdropNode
     let world = SKNode()
     let playfield = SKNode()
     let fxLayer = SKNode()
+    /// Long-lived effects that are reused instead of re-created (never cleared between runs).
+    let pooledFX = SKNode()
     let slowMoOverlay = SKSpriteNode(color: UIColor(hex: PowerUpKind.slowMo.color), size: .zero)
     let flashNode = SKSpriteNode(color: .white, size: .zero)
     var player: PlayerNode?
@@ -55,12 +58,19 @@ final class GameScene: SKScene {
     private var publishedPowerUps: [ActivePowerUp] = []
     private var isBuilt = false
 
+    // Pools and warm-up work that keep spark pickups free of main-thread spikes.
+    private var sparkBursts: [SKEmitterNode] = []
+    private var nextSparkBurst = 0
+    private var pendingBarWidths: [CGFloat] = []
+    private var queuedBarWarmUp = false
+
     #if DEBUG
     let perfStats = PerfStats()
     #endif
 
     init(size: CGSize, config: GameConfig) {
         self.config = config
+        accentColor = UIColor(hex: config.theme.accent)
         backdrop = BackdropNode(theme: config.theme)
         super.init(size: size)
         scaleMode = .resizeFill
@@ -101,6 +111,17 @@ final class GameScene: SKScene {
         world.addChild(playfield)
         fxLayer.zPosition = 30
         world.addChild(fxLayer)
+        pooledFX.zPosition = 30
+        world.addChild(pooledFX)
+
+        for _ in 0..<8 {
+            let burst = EmitterFactory.burst(color: accentColor, count: 10, speed: 120, lifetime: 0.35, scale: 0.2)
+            burst.particleBirthRate = 0
+            burst.zPosition = 30
+            pooledFX.addChild(burst)
+            sparkBursts.append(burst)
+        }
+        prewarmPopupTextures()
 
         slowMoOverlay.anchorPoint = .zero
         slowMoOverlay.alpha = 0
@@ -121,6 +142,12 @@ final class GameScene: SKScene {
         backdrop.layout(size: size)
         slowMoOverlay.size = size
         flashNode.size = size
+        if !queuedBarWarmUp {
+            // Every obstacle width is pre-rendered over the first frames (one per frame) so new rows never
+            // have to draw a texture mid-run.
+            queuedBarWarmUp = true
+            pendingBarWidths = Array(stride(from: CGFloat(16), through: size.width + 200, by: 8))
+        }
         if let player {
             player.position.y = playerBaseY
             targetX = targetX.clamped(to: horizontalRange)
@@ -149,6 +176,10 @@ final class GameScene: SKScene {
         rows.forEach { $0.removeFromParent() }
         rows.removeAll()
         fxLayer.removeAllChildren()
+        for burst in sparkBursts {
+            burst.particleBirthRate = 0
+            burst.resetSimulation()
+        }
         world.removeAllActions()
         world.position = .zero
         world.isPaused = false
@@ -219,6 +250,7 @@ final class GameScene: SKScene {
         #endif
         let dt = min(currentTime - lastUpdateTime, 1.0 / 30.0)
         guard !isGamePaused else { return }
+        warmUpNextBarTexture()
 
         switch runState {
         case .running:
@@ -389,9 +421,8 @@ final class GameScene: SKScene {
         ]))
 
         let result = keeper.registerSpark(doubled: doubled)
-        let tint = UIColor(hex: config.theme.accent)
-        emitBurst(at: point, color: tint, count: 10, speed: 120, lifetime: 0.35, scale: 0.2)
-        popup("+\(result.points)", at: CGPoint(x: point.x, y: point.y + 18), color: tint, size: 15)
+        sparkBurst(at: point)
+        popup("+\(result.points)", at: CGPoint(x: point.x, y: point.y + 18), color: accentColor, size: 15)
         player?.pop()
 
         let pitch = 1 + Float(min(keeper.chain, 12)) * 0.035
@@ -413,9 +444,8 @@ final class GameScene: SKScene {
 
     private func multiplierIncreased() {
         let m = keeper.multiplier
-        let tint = UIColor(hex: config.theme.accent)
-        popup("COMBO x\(m)", at: CGPoint(x: size.width / 2, y: size.height * 0.62), color: tint, size: 30)
-        shockwave(at: player?.position ?? .zero, color: tint)
+        popup("COMBO x\(m)", at: CGPoint(x: size.width / 2, y: size.height * 0.62), color: accentColor, size: 30)
+        shockwave(at: player?.position ?? .zero, color: accentColor)
         AudioManager.shared.play(.combo, rate: 1 + Float(m) * 0.05)
         HapticsManager.shared.combo()
     }
@@ -495,6 +525,21 @@ final class GameScene: SKScene {
         }
     }
 
+    /// Replays a pooled particle burst instead of allocating a new emitter per spark.
+    private func sparkBurst(at point: CGPoint) {
+        guard !sparkBursts.isEmpty else { return }
+        let burst = sparkBursts[nextSparkBurst]
+        nextSparkBurst = (nextSparkBurst + 1) % sparkBursts.count
+        burst.position = point
+        burst.particleBirthRate = 600
+        burst.resetSimulation()
+    }
+
+    private func warmUpNextBarTexture() {
+        guard let width = pendingBarWidths.popLast() else { return }
+        _ = TextureFactory.bar(size: CGSize(width: width, height: Self.barHeight), color: config.theme.obstacle)
+    }
+
     private func cullRows() {
         while let first = rows.first, first.position.y + first.topExtent < -80 {
             first.removeFromParent()
@@ -542,16 +587,16 @@ final class GameScene: SKScene {
     // MARK: - HUD publishing
 
     private func publish(force: Bool = false) {
-        guard let session else { return }
+        guard let hud = session?.hud else { return }
         let score = keeper.displayScore
         if force || score != publishedScore {
             publishedScore = score
-            session.score = score
+            hud.score = score
         }
         let multiplier = keeper.multiplier
         if force || multiplier != publishedMultiplier {
             publishedMultiplier = multiplier
-            session.multiplier = multiplier
+            hud.multiplier = multiplier
         }
         // Quantized so SwiftUI only re-renders ~20 times per second for power-up rings.
         let active = PowerUpKind.allCases.compactMap { kind -> ActivePowerUp? in
@@ -560,7 +605,7 @@ final class GameScene: SKScene {
         }
         if force || active != publishedPowerUps {
             publishedPowerUps = active
-            session.activePowerUps = active
+            hud.activePowerUps = active
         }
     }
 }

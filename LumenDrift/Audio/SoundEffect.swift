@@ -14,15 +14,6 @@ enum SoundEffect: String, CaseIterable {
     case newBest = "sfx_new_best"
     case purchase = "sfx_purchase"
 
-    /// How many copies can overlap.
-    var voices: Int {
-        switch self {
-        case .spark: return 4
-        case .nearMiss, .button: return 3
-        default: return 2
-        }
-    }
-
     var volume: Float {
         switch self {
         case .button: return 0.5

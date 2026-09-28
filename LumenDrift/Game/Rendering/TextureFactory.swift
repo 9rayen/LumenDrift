@@ -8,6 +8,7 @@ enum TextureFactory {
     static let barPadding: CGFloat = 10
 
     private static var cache: [String: SKTexture] = [:]
+    private static var textSizes: [String: CGSize] = [:]
 
     // MARK: - Shared textures
 
@@ -136,7 +137,8 @@ enum TextureFactory {
         let height = size.height
         return cached("bar-\(Int(width))-\(Int(height))-\(hex)") {
             let pad = barPadding
-            return render(CGSize(width: width + pad * 2, height: height + pad * 2)) { ctx, rect in
+            // 2x is plenty for soft glowing glass and renders more than twice as fast as 3x.
+            return render(CGSize(width: width + pad * 2, height: height + pad * 2), scale: 2) { ctx, rect in
                 let body = rect.insetBy(dx: pad, dy: pad)
                 let radius = min(body.height / 2, 9)
                 let path = UIBezierPath(roundedRect: body, cornerRadius: radius).cgPath
@@ -200,6 +202,31 @@ enum TextureFactory {
         }
     }
 
+    /// Pre-rendered popup text ("+30", "COMBO x3" …). Creating an `SKLabelNode` rasterizes its text on
+    /// the main thread every time, which stalled frames when sparks were collected in quick succession;
+    /// a cached texture makes each popup as cheap as a plain sprite.
+    static func text(_ string: String, fontSize: CGFloat, color: UIColor) -> (texture: SKTexture, size: CGSize) {
+        let key = "text|\(string)|\(fontSize)|\(colorKey(color))"
+        if let texture = cache[key], let size = textSizes[key] { return (texture, size) }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.rounded(fontSize, weight: .heavy),
+            .foregroundColor: color,
+        ]
+        let text = string as NSString
+        let textSize = text.size(withAttributes: attributes)
+        let pad: CGFloat = 6
+        let size = CGSize(width: ceil(textSize.width) + pad * 2, height: ceil(textSize.height) + pad * 2)
+        let image = render(size) { ctx, _ in
+            ctx.setShadow(offset: .zero, blur: 5, color: color.withAlphaComponent(0.7).cgColor)
+            text.draw(at: CGPoint(x: pad, y: pad), withAttributes: attributes)
+        }
+        let texture = SKTexture(image: image)
+        cache[key] = texture
+        textSizes[key] = size
+        return (texture, size)
+    }
+
     static func background(for theme: WorldTheme) -> SKTexture {
         if let custom = UIImage(named: "background_\(theme.id)") {
             return cached("bg-custom-\(theme.id)") { custom }
@@ -222,9 +249,15 @@ enum TextureFactory {
         return texture
     }
 
-    private static func render(_ size: CGSize, _ draw: (CGContext, CGRect) -> Void) -> UIImage {
+    private static func colorKey(_ color: UIColor) -> String {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return "\(Int(r * 255))-\(Int(g * 255))-\(Int(b * 255))-\(Int(a * 255))"
+    }
+
+    private static func render(_ size: CGSize, scale: CGFloat = 3, _ draw: (CGContext, CGRect) -> Void) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 3
+        format.scale = scale
         format.opaque = false
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
             draw(context.cgContext, CGRect(origin: .zero, size: size))

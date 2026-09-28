@@ -9,13 +9,12 @@ final class GameSession: ObservableObject {
     }
 
     @Published private(set) var phase: Phase = .playing
-    @Published var score = 0
-    @Published var multiplier = 1
-    @Published var activePowerUps: [ActivePowerUp] = []
     @Published private(set) var showHint: Bool
     @Published private(set) var summary: RunSummary? = nil
     @Published private(set) var bestScore: Int
 
+    /// Score, multiplier and power-ups; observed only by the HUD.
+    let hud = HUDState()
     let scene: GameScene
     let theme: WorldTheme
     private let store: ProgressStore
@@ -36,8 +35,6 @@ final class GameSession: ObservableObject {
         scene.session = self
     }
 
-    var isNewBestLive: Bool { score > bestScore && bestScore > 0 }
-
     // MARK: - Controls
 
     func pause() {
@@ -56,9 +53,7 @@ final class GameSession: ObservableObject {
 
     func restart() {
         summary = nil
-        score = 0
-        multiplier = 1
-        activePowerUps = []
+        hud.reset()
         bestScore = store.progress.bestScore
         phase = .playing
         AudioManager.shared.setDucked(false)

@@ -13,14 +13,11 @@ extension GameScene {
         ]))
     }
 
+    /// Floating score text. Uses cached text textures (see `TextureFactory.text`) rather than `SKLabelNode`,
+    /// which would rasterize the string on the main thread for every popup.
     func popup(_ text: String, at point: CGPoint, color: UIColor, size fontSize: CGFloat) {
-        let label = SKLabelNode()
-        label.attributedText = NSAttributedString(string: text, attributes: [
-            .font: UIFont.rounded(fontSize, weight: .heavy),
-            .foregroundColor: color,
-        ])
-        label.verticalAlignmentMode = .center
-        label.horizontalAlignmentMode = .center
+        let rendered = TextureFactory.text(text, fontSize: fontSize, color: color)
+        let label = SKSpriteNode(texture: rendered.texture, size: rendered.size)
         label.position = CGPoint(
             x: point.x.clamped(to: 60...max(60, size.width - 60)),
             y: point.y
@@ -39,6 +36,23 @@ extension GameScene {
             ]),
             .removeFromParent(),
         ]))
+    }
+
+    /// Renders every popup the game can show before play starts, so no text is drawn mid-run.
+    func prewarmPopupTextures() {
+        for multiplier in 1...8 {
+            for bonus in [1, 2] {
+                _ = TextureFactory.text("+\(ScoreKeeper.sparkValue * multiplier * bonus)", fontSize: 15, color: accentColor)
+                _ = TextureFactory.text("CLOSE +\(ScoreKeeper.nearMissValue * multiplier * bonus)", fontSize: 16, color: .white)
+            }
+            if multiplier > 1 {
+                _ = TextureFactory.text("COMBO x\(multiplier)", fontSize: 30, color: accentColor)
+            }
+        }
+        for kind in PowerUpKind.allCases {
+            _ = TextureFactory.text(kind.title.uppercased(), fontSize: 26, color: UIColor(hex: kind.color))
+        }
+        _ = TextureFactory.text("combo lost", fontSize: 13, color: UIColor.white.withAlphaComponent(0.6))
     }
 
     func shockwave(at point: CGPoint, color: UIColor, scale: CGFloat = 3.5) {
